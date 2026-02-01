@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>DreamVision</title>
+    </head>
+    <body>
+        <video id="video" autoplay playsinline style="display:none;"></video>
+        <canvas id="canvas" width="512" height="512" style="display:none;"></canvas>
+        <img id="preview">
+    </body>
+</html>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    let key = "";
+    (async function(){
+        key = await (await fetch("/register?q="+encodeURIComponent(prompt("Enter prompt")))).text();
+    })();
+
+    async function initCamera() {
+        try{
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: "environment" } }, 
+                audio: false 
+            });
+            video.srcObject = stream;
+        }catch(err){
+            alert("Access to camera was denied: "+err.toString())
+        }
+    }
+
+    async function stream(){
+        const vWidth = video.videoWidth;
+        const vHeight = video.videoHeight;
+
+        const sourceX = (vWidth - 512) / 2;
+        const sourceY = (vHeight - 512) / 2;
+
+        context.drawImage(
+            video, 
+            sourceX, sourceY, 512, 512,
+            0, 0, 512, 512
+        );
+
+        const im = canvas.toDataURL('image/jpeg', 0.9);
+
+        const response = await fetch('/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                key: key,
+                image: im
+            })
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const preview = document.getElementById('preview');
+            if(preview) preview.src = URL.createObjectURL(blob);
+        }
+
+        stream();
+    }
+    
+    initCamera();
+    stream();
+</script>
